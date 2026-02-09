@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <mutex>
 #include <condition_variable>
+#include <thread>
 
 struct Task
 {
@@ -118,6 +119,10 @@ int main()
 {
 
     TaskScheduler taskScheduler;
+    const int workerCount = 3;
+    std::vector<std::thread> workers;
+    workers.reserve(workerCount);
+
     taskScheduler.submit({"a",
                           102,
                           24});
@@ -134,13 +139,40 @@ int main()
     taskScheduler.cancel("b");
 
   // taskScheduler.tryGetNext();
-    while (auto t = taskScheduler.getNext())
+  for(int i = 0;i < workerCount;++i){
+    workers.emplace_back([&taskScheduler, i]{
+            while (auto t = taskScheduler.getNext())
     {
-        std::cout << "==> task id: " << t->task_id
-                  << " priority: " << t->priority
-                  << " ts: " << t->ts
-                  << "\n";
+                std::cout       << "[Worker=" << i << "] "
+                                 << "task=" << t->task_id << " "
+                                 <<"priority="    << t->priority << " "
+                                 << "ts="   << t->ts << " \n";
+                std::cout << "[worker " << i << "] exiting\n";
+                 
     }
+
+
+    });
+  }
+        taskScheduler.submit({"a", 102, 24});
+        taskScheduler.submit({"b", 102, 24});
+        taskScheduler.submit({"c", 100, 242});
+        taskScheduler.submit({"d", 101, 241});
+        taskScheduler.cancel("b");
+            // Add more tasks later to see concurrency
+    for (int k = 0; k < 6; ++k)
+    {
+        taskScheduler.submit({ "x" + std::to_string(k), 100 + (k % 3), 10 + (std::uint64_t)k });
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    // Give workers time to drain queue (for demo only)
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+
+//    // Stop workers and join
+  //  taskScheduler.shutdown();
+    for (auto& th : workers) th.join();
+
 
     return 0;
 }
