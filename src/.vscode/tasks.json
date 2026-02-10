@@ -10,7 +10,7 @@
           "-Wall",
           "-Wextra",
           "-Wpedantic",
-          "src/main.cpp",
+          "src/app.cpp",
           "-o",
           "app"
         ],
