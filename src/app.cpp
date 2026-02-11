@@ -5,7 +5,13 @@
 #include <condition_variable>
 #include <mutex>
 #include <thread>
+#include <functional>
+#include <queue>
+#include <vector>
+#include <atomic>
+using Clock = std::chrono::steady_clock;
 
+// Task
 struct Task
 {
     std::string id;
@@ -21,12 +27,14 @@ enum TaskResult
     PERMANENT_FAIL
 };
 
+// Handler
 struct ITaskHandler
 {
     virtual ~ITaskHandler() = default;
     virtual TaskResult handle(const Task &t) = 0;
 };
 
+//  queue
 template <typename T>
 class BoundBlockQueue
 {
@@ -93,7 +101,111 @@ private:
     std::condition_variable cv_not_full_;
     mutable std::mutex mtx_;
 };
+// RetryScheduler
+class RetryScheduler
+{
+public:
+    explicit RetryScheduler(std::function<bool(Task)> enqueueFn)
+        : enqueueFn_(std::move(enqueueFn)), th_([this]
+                                                { loop(); }) {}
+    ~RetryScheduler()
+    {
+        stop();
+    };
+    void schedule(Task t, Clock::time_point due)
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        if (stopping_)
+            return;
+        heap_.push(Item{due, std::move(t)});
+        cv_.notify_one();
+    };
+    void stop()
+    {
+        bool expected = false;
+        if (!stopped_.compare_exchange_strong(expected, true))
+            return;
 
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            stopping_ = true;
+        }
+        cv_.notify_one();
+        if (th_.joinable())
+            th_.join();
+    };
+    bool empty()
+    {
+        std::lock_guard lock(m_);
+        return heap_.empty();
+    };
+
+private:
+    struct Item
+    {
+        Clock::time_point due;
+        Task task;
+    };
+
+    struct Cmp
+    {
+        bool operator()(const Item &a, Item &b)
+        {
+            return a.due > b.due;
+        }
+    };
+
+    void loop()
+    {
+        std::unique_lock<std::mutex> lock(m_);
+        while (true)
+        {
+            cv_.wait(lock, [&]
+                     { return stopping_ || !heap_.empty(); });
+            if (stopping_)
+                break;
+            while (!heap_.empty())
+            {
+                auto nextDue = heap_.top().due;
+                cv_.wait_until(lock, nextDue, [&]
+                               { return stopping_ || heap_.empty() || heap_.top().due != nextDue; });
+
+                if (stopping_)
+                    break;
+                if (heap_.empty())
+                    continue;
+
+                if (Clock::now() < nextDue)
+                {
+                    continue;
+                }
+                Item it = heap_.top();
+                heap_.pop();
+                lock.unlock();
+                (void)enqueueFn_(std::move(it.task));
+                lock.lock();
+
+                if (stopping_)
+                    break;
+                if (!heap_.empty() && heap_.top().due > Clock::now())
+                {
+                    break;
+                }
+                if (stopping_)
+                    break;
+            }
+        }
+    };
+
+    std::function<bool(Task)> enqueueFn_;
+    mutable std::mutex m_;
+    std::condition_variable cv_;
+    std::priority_queue<Item, std::vector<Item>, Cmp> heap_;
+    std::thread th_;
+    bool stopping_ = false;
+    std::atomic<bool> stopped_ = false;
+};
+// worker pool
 class WorkerPool
 {
 public:
@@ -102,7 +214,10 @@ public:
         Drain,
         Cancel
     };
-    WorkerPool(size_t workers, size_t queueCap, ITaskHandler &handler, int maxAttempts = 3) : q_(queueCap), handler_(handler), max_attempts_(maxAttempts)
+    WorkerPool(size_t workers, size_t queueCap, ITaskHandler &handler, int maxAttempts = 3, std::chrono::milliseconds baseBackOff = std::chrono::milliseconds(200)) : q_(queueCap), handler_(handler),
+                                                                                                                                                                      retry_([this](Task t)
+                                                                                                                                                                             { return q_.push(std::move(t)); }),
+                                                                                                                                                                      max_attempts_(maxAttempts), baseBackOff_(baseBackOff)
     {
         for (size_t i = 0; i < workers; i++)
         {
@@ -127,14 +242,15 @@ public:
         stopAccepting();
         if (mode == ShutdownMode::Cancel)
         {
+            retry_.stop();
             q_.cancel();
         }
         else
         {
-            q_.close();
             std::unique_lock<std::mutex> lock(drainMtx_);
             drainCv_.wait(lock, [&]
-                          { return q_.empty() && inFlight_.load(std::memory_order_acquire) == 0; });
+                          { return q_.empty() && inFlight_.load(std::memory_order_acquire) == 0 && retry_.empty(); });
+            retry_.stop();
             q_.cancel();
         }
 
@@ -146,6 +262,22 @@ public:
     };
 
 private:
+    static std::chrono::milliseconds backoff(int attempt, std::chrono::milliseconds base)
+    {
+
+        long long ms = base.count();
+        for (int i = 0; i < attempt; i++)
+        {
+            ms *= 2;
+            if (ms > 5000)
+            {
+                ms = 5000;
+                break;
+            }
+        }
+        return std::chrono::milliseconds(ms);
+    }
+
     void workerLoop()
     {
         Task t;
@@ -153,16 +285,22 @@ private:
         {
             inFlight_.fetch_add(1, std::memory_order_acq_rel);
             TaskResult r = handler_.handle(t);
+
             if (r == TaskResult::RETRYABLE_FAIL)
             {
                 t.attempt++;
-                if (t.attempt >= max_attempts_)
+                if (t.attempt < max_attempts_)
                 {
-                    (void)q_.push(std::move(t));
+                    auto delay = backoff(t.attempt, baseBackOff_);
+                    retry_.schedule(std::move(t), Clock::now() + delay);
                 }
             }
             inFlight_.fetch_sub(1, std::memory_order_acq_rel);
-            if(inFlight_.load(std::memory_order_acquire) == 0 && q_.empty()){
+            if (inFlight_.load(
+                    std::memory_order_acquire) == 0 &&
+                q_.empty() &&
+                retry_.empty())
+            {
                 std::lock_guard<std::mutex> lock(drainMtx_);
                 drainCv_.notify_all();
             }
@@ -170,7 +308,9 @@ private:
     };
     BoundBlockQueue<Task> q_;
     ITaskHandler &handler_;
+    RetryScheduler retry_;
     int max_attempts_;
+    std::chrono::milliseconds baseBackOff_;
     std::vector<std::thread> threads_;
     std::atomic<bool> accepting_;
     std::atomic<int> inFlight_{0};
@@ -186,8 +326,111 @@ struct DemoHandler : ITaskHandler
         std::this_thread::sleep_for(std::chrono::microseconds(30));
         if (t.payload == "fail" && t.attempt < 2)
             return TaskResult::RETRYABLE_FAIL;
+        std::cout << "TASK ID" << t.id << "SUCCESS";
         return TaskResult::SUCCESS;
     }
+};
+
+// ---------------- Fair, bounded, blocking queue ----------------
+struct FairTask
+{
+    std::string id;
+    std::string tenantId;
+    std::string payload;
+    int attempt{0};
+};
+
+class FairTaskQueue
+{
+public:
+    explicit FairTaskQueue() {}
+    bool push(FairTask t) {
+        std::unique_lock<std::mutex> lock(m_);
+        cv_not_full_.wait(lock,[&]{
+            return canceled_ || closed_ || size_ < capacity_;
+        });
+        if (canceled_ || closed_)
+        {
+            return false;
+        }
+         auto& q = perTenant_[t.tenantId];
+         bool wasEmpty = q.empty();
+         q.push_back(std::move(t));
+         size_++;
+
+         if (wasEmpty)
+         {
+            activeRing_.push_back(t.tenantId);
+         }
+         cv_not_empty_.notify_one();
+         return true;
+    }
+    bool pull(FairTask out)
+    {
+        std::unique_lock<std::mutex> lock(m_);
+        cv_not_empty_.wait(lock, [&]
+                           { return canceled_ || size_ > 0 || closed_; });
+        if (canceled_)
+        {
+            return false;
+        }
+        if (size_ == 0)
+        {
+            return false;
+        }
+        //Round Robin
+        std::string tenant = std::move(activeRing_.front());
+        activeRing_.pop_front();
+        auto it = perTenant_.find(tenant);
+
+        if(it == perTenant_.end() || it->second.empty()){
+            return pull(out);
+        }
+         auto& tq = it->second;
+         out = std::move(tq.front());
+         tq.pop_front();
+         size_--;
+         if (!tq.empty())
+         {
+            activeRing_.push_back(tenant);
+         }else{
+            perTenant_.erase(it);
+         }
+         cv_not_full_.notify_one();
+         return true;
+         
+    }
+    void cancel()
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        canceled_ = true;
+        cv_not_empty_.notify_all();
+        cv_not_full_.notify_all();
+    }
+    void close()
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        closed_ = true;
+        cv_not_empty_.notify_all();
+        cv_not_full_.notify_all();
+    }
+    bool empty() const
+    {
+        std::lock_guard<std::mutex> lock(m_);
+        return size_ == 0;
+    }
+
+private:
+    size_t capacity_;
+    mutable std::mutex m_;
+    std::condition_variable cv_not_empty_;
+    std::condition_variable cv_not_full_;
+    std::unordered_map<std::string, std::deque<FairTask>> perTenant_;
+    std::deque<std::string> activeRing_;
+
+    size_t size_ = 0;
+    bool closed_ = false;
+    bool canceled_ = false;
 };
 
 int main()
