@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/ibrahimmusabeh/Desktop/ISM/cpp-practice/src/priority_scheduler'
+relocations:     []
+...
