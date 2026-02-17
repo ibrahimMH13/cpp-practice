@@ -1,5 +1,10 @@
 #include <iostream>
 #include <vector>
+#include <unordered_map>
+#include <queue>
+#include <functional>
+#include <utility>
+
 
 using namespace std;
 vector<int> intersectStored(const vector<int> &a, const vector<int> &b)
@@ -61,11 +66,13 @@ vector<int> mergedSorted(const vector<int> &a, const vector<int> &b)
 
     return out;
 }
- 
- void removeDuplicated(vector<int>& a){
 
-    if (a.size() < 1) return;
-    
+void removeDuplicated(vector<int> &a)
+{
+
+    if (a.size() < 1)
+        return;
+
     int write = 1;
 
     for (int read = 1; read < (int)a.size(); read++)
@@ -77,8 +84,64 @@ vector<int> mergedSorted(const vector<int> &a, const vector<int> &b)
         }
     }
     a.resize(write);
- }
- 
+}
+
+vector<int> topK(const vector<int> &nums, int k)
+{
+
+    priority_queue<int, vector<int>, greater<int>> pq;
+
+    for (int x : nums)
+    {
+        pq.push(x);
+        if (pq.size() > k)
+        {
+            pq.pop();
+        }
+    }
+    vector<int> result;
+    result.reserve(k);
+
+    while (!pq.empty())
+    {
+        result.push_back(pq.top());
+        pq.pop();
+    }
+
+    return result;
+}
+
+vector<int> topKFrequent(const vector<int>& nums, int k){
+
+        unordered_map<int, int> req;
+
+        for (int x : nums)
+        {
+            req[x]++;
+        }
+        priority_queue<pair<int, int>,vector<pair<int,int>>,greater<pair<int,int>>> pq;
+
+        for (auto& [value,count] : req)
+        {
+           pq.push({count, value});
+           if (pq.size() > k)
+           {
+                pq.pop();
+           }
+           
+        }
+
+        vector<int> result;
+        while (!pq.empty())
+        {
+            result.push_back(pq.top().second);
+            pq.pop();
+
+        }
+        
+        return result;        
+}
+
 int main()
 {
 
@@ -87,10 +150,14 @@ int main()
     //     auto r = intersectStored(a, b);
     //     for (int x : r) cout << x <<" ";
     //     cout << "\n";
-    vector<int> a = {1, 2, 2, 4};
+    vector<int> a = {1, 2, 2,9, 4};
     const vector<int> b = {2, 2, 3};
+     vector<int> c = {3,1,5,12,2,11};
+      vector<int> d = {1,1,1,2,2,3};
     removeDuplicated(a);
-    for (int x : a)
+    auto v = topK(c, 2);
+    auto topKF = topKFrequent(d,2);
+    for (int x : topKF)
         cout << x << " ";
     cout << "\n";
     return 0;
