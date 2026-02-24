@@ -142,6 +142,53 @@ vector<int> topKFrequent(const vector<int>& nums, int k){
         return result;        
 }
 
+struct Node {
+    int value;
+    int listIndex;
+    int elemIndx;
+
+    bool operator>(const Node& other) const{
+        return value > other.value;
+    }
+};
+
+vector<int> mergedKSorted(const vector<vector<int>>& lists){
+
+    priority_queue<Node, vector<Node>, greater<Node>> pq;
+
+    for (int i = 0; i < lists.size(); i++)
+    {
+       if (!lists[i].empty())
+       {
+         pq.push({
+            lists[i][0],
+            i,
+            0
+         });
+       }
+    }
+
+    vector<int> result;
+     while (!pq.empty())
+     {
+       Node curr = pq.top();
+       pq.pop();
+       result.push_back(curr.value);
+       int nextInx = curr.elemIndx+1;
+       if (nextInx < lists[curr.listIndex].size())
+       {
+            pq.push({
+                lists[curr.listIndex][nextInx],
+                curr.listIndex,
+                nextInx
+            });
+       }
+     }
+     
+    return result;
+}
+
+
 int main()
 {
 
@@ -154,10 +201,12 @@ int main()
     const vector<int> b = {2, 2, 3};
      vector<int> c = {3,1,5,12,2,11};
       vector<int> d = {1,1,1,2,2,3};
+      auto rr = {a,c,d};
     removeDuplicated(a);
     auto v = topK(c, 2);
     auto topKF = topKFrequent(d,2);
-    for (int x : topKF)
+    auto merged = mergedKSorted(rr);
+    for (int x : merged)
         cout << x << " ";
     cout << "\n";
     return 0;
