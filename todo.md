@@ -1,133 +1,123 @@
-🟩 PART 1 — Heap / Ranking Pattern (CURRENT)
-✅ Already Done
+🟩 PART 1 — Heap / Ranking Pattern
 
- Top K Elements
+Goal: master ranking / aggregation logic
 
- Top K Frequent Elements
+✅ Top K Elements
 
- Heap size control (O(N log K))
+✅ Top K Frequent Elements
 
- Merge K Sorted Lists (K-way merge)
+✅ Heap size control (O(N log K))
 
-🔜 Remaining Heap Block
+✅ Merge K Sorted Lists (K-way merge)
 
- Find Median From Data Stream ⭐
+✅ Find Median From Data Stream ⭐
 
- Kth Largest Element in Stream
+✅ Kth Largest Element in Stream
 
- Sliding Window Median
+✅ Top K Closest Points
 
- Top K Closest Points
+✅ Reorganize String (heap + greedy)
 
- Reorganize String (heap + greedy)
+⬜ Sliding Window Median ⭐ (next “boss” problem)
 
-Goal:
-✅ Master ranking / aggregation logic
+Heap block readiness: strong, except Sliding Window Median.
 
 🟨 PART 2 — Sliding Window Pattern
 
- Maximum Sum Subarray
+Goal: streaming + throughput reasoning
 
- Longest Substring Without Repeating Characters
+⬜ Maximum Sum Subarray
 
- Minimum Size Subarray Sum
+⬜ Longest Substring Without Repeating Characters
 
- Longest Repeating Character Replacement
+⬜ Minimum Size Subarray Sum
 
- Minimum Window Substring ⭐
+⬜ Longest Repeating Character Replacement
 
- Subarray Product < K
+⬜ Minimum Window Substring ⭐
 
-Goal:
-✅ Streaming + throughput reasoning
+⬜ Subarray Product < K
 
 🟦 PART 3 — Binary Search Engineering Pattern
 
- Binary Search Basics
+Goal: optimization & decision problems
 
- First / Last Position
+⬜ Binary Search Basics
 
- Search Rotated Array
+⬜ First / Last Position
 
- Find Peak Element
+⬜ Search Rotated Array
 
- Capacity To Ship Packages ⭐
+⬜ Find Peak Element
 
- Koko Eating Bananas
+⬜ Capacity To Ship Packages ⭐
 
- Split Array Largest Sum
+⬜ Koko Eating Bananas
 
-Goal:
-✅ Optimization & decision problems
+⬜ Split Array Largest Sum
 
 🟥 PART 4 — Graph / Dependency Thinking
 
- BFS fundamentals
+Goal: service dependency reasoning
 
- DFS fundamentals
+⬜ BFS fundamentals
 
- Number of Islands
+⬜ DFS fundamentals
 
- Course Schedule ⭐
+⬜ Number of Islands
 
- Topological Sort
+⬜ Course Schedule ⭐
 
- Clone Graph
+⬜ Topological Sort
 
- Shortest Path basics
+⬜ Clone Graph
 
-Goal:
-✅ Service dependency reasoning
+⬜ Shortest Path basics
 
 🟪 PART 5 — Queue / Concurrency (VERY IMPORTANT FOR YOU)
 
 (using your scheduler project)
 
- FIFO worker queue
+✅ FIFO worker queue
 
- Priority scheduling
+✅ Priority scheduling
 
- Fair multi-tenant queue
+✅ Fair multi-tenant queue
 
- Starvation prevention
+✅ Starvation prevention
 
- Retry & backoff logic
+🟨 Retry & backoff logic (needs a focused pass + test scenarios)
 
- Rate limiting concept
+🟨 Rate limiting concept (conceptually ok, needs implement/design drill)
 
- Producer / Consumer model
-
-Goal:
-✅ Backend realism (strong eBay signal)
+✅ Producer / Consumer model
 
 🟫 PART 6 — System Design (Coding + Discussion)
 
- Design Task Queue
+Goal: senior-level reasoning
 
- Design Rate Limiter
+🟨 Design Task Queue (you have strong foundation from scheduler)
 
- Design Notification System
+⬜ Design Rate Limiter ⭐
 
- Design Feed Ranking
+⬜ Design Notification System
 
- Design Distributed Job Scheduler ⭐
+⬜ Design Feed Ranking ⭐
 
-Goal:
-✅ Senior-level reasoning
+🟨 Design Distributed Job Scheduler ⭐ (partially covered via your project; needs “interview framing”)
 
 🟧 PART 7 — Interview Communication Training
 
-Practice every problem:
+🟨 Improving, but still needs reps:
 
- Explain brute force first
+brute force first
 
- State constraints
+constraints
 
- Choose DS intentionally
+DS choice
 
- State complexity clearly
+complexity
 
- Discuss tradeoffs
+tradeoffs
 
- Handle follow-ups
-
+follow-ups
